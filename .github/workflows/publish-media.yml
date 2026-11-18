@@ -36,7 +36,6 @@ jobs:
               rm -f "out/$base"
             fi
           done
-          # Reject known-size mismatches so a raced incomplete decode cannot be published
           python3 - <<'PY'
           import os, sys
           expected = {
@@ -74,18 +73,22 @@ jobs:
             gh release create "$TAG" --title "Missed in GTA 6 Shorts media" --notes "Public MP4s for scheduling Missed in GTA 6 YouTube Shorts. Fan page, not affiliated with Rockstar Games. Trailer footage copyright Rockstar Games."
           fi
           gh release upload "$TAG" out/* --clobber
-          cp out/* media/
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add media
-          if git diff --cached --quiet; then
-            echo "No media tree changes"
-          else
-            git commit -m "Publish decoded Shorts MP4s"
-            git push
-          fi
+          # Slim orphan branch so jsDelivr stays under its 50MB package limit
+          work=$(mktemp -d)
+          cp out/*.mp4 "$work/"
+          cat > "$work/README.md" <<'EOF'
+          Missed in GTA 6 Shorts media (fan page, not affiliated with Rockstar Games).
+          EOF
+          git -C "$work" init
+          git -C "$work" checkout -b cdn
+          git -C "$work" config user.name "github-actions[bot]"
+          git -C "$work" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$work" add .
+          git -C "$work" commit -m "CDN-only Shorts MP4s"
+          git -C "$work" remote add origin "https://x-access-token:${GH_TOKEN}@github.com/mentallytrillest/missedingta6-media.git"
+          git -C "$work" push -f origin cdn
           ls -la out
-          echo "Asset URLs:"
+          echo "jsDelivr URLs:"
           for f in out/*; do
-            echo "https://github.com/mentallytrillest/missedingta6-media/releases/download/v1/$(basename "$f")"
+            echo "https://cdn.jsdelivr.net/gh/mentallytrillest/missedingta6-media@cdn/$(basename "$f")"
           done
