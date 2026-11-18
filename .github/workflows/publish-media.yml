@@ -1,0 +1,51 @@
+name: Publish media release
+
+on:
+  push:
+    paths:
+      - 'payloads/**'
+      - '.github/workflows/publish-media.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode payloads and upload release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          shopt -s nullglob
+          for f in payloads/*.b64 payloads/*.b64.part*; do
+            :
+          done
+          # Join split parts then decode any complete .b64 files
+          for prefix in payloads/*.b64.partaa; do
+            [ -e "$prefix" ] || continue
+            stem="${prefix%.b64.partaa}"
+            cat "${stem}.b64.part"* > "${stem}.b64"
+          done
+          for f in payloads/*.b64; do
+            [ -e "$f" ] || continue
+            base="$(basename "$f" .b64)"
+            base64 -d "$f" > "out/$base"
+            echo "Decoded $base ($(wc -c < "out/$base") bytes)"
+          done
+          if [ -z "$(ls -A out 2>/dev/null)" ]; then
+            echo "No media to publish"
+            exit 0
+          fi
+          TAG=v1
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists"
+          else
+            gh release create "$TAG" --title "Missed in GTA 6 Shorts media" --notes "Public MP4s for scheduling Missed in GTA 6 YouTube Shorts. Fan page, not affiliated with Rockstar Games. Trailer footage copyright Rockstar Games."
+          fi
+          gh release upload "$TAG" out/* --clobber
+          ls -la out
