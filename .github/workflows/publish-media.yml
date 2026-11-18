@@ -22,11 +22,11 @@ jobs:
           set -euo pipefail
           mkdir -p out
           shopt -s nullglob
-          for prefix in payloads/*.b64.partaa; do
-            stem="${prefix%.b64.partaa}"
-            cat "${stem}.b64.part"* > "${stem}.b64"
+          for first in payloads/*.mp4.b64-00; do
+            stem="${first%-00}"
+            cat "$stem"-* > "$stem"
           done
-          for f in payloads/*.b64; do
+          for f in payloads/*.mp4.b64; do
             base="$(basename "$f" .b64)"
             if base64 -d "$f" > "out/$base" 2>/tmp/b64.err; then
               echo "Decoded $base ($(wc -c < "out/$base") bytes)"
