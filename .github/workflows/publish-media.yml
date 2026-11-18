@@ -22,23 +22,22 @@ jobs:
           set -euo pipefail
           mkdir -p out
           shopt -s nullglob
-          for f in payloads/*.b64 payloads/*.b64.part*; do
-            :
-          done
-          # Join split parts then decode any complete .b64 files
           for prefix in payloads/*.b64.partaa; do
-            [ -e "$prefix" ] || continue
             stem="${prefix%.b64.partaa}"
             cat "${stem}.b64.part"* > "${stem}.b64"
           done
           for f in payloads/*.b64; do
-            [ -e "$f" ] || continue
             base="$(basename "$f" .b64)"
-            base64 -d "$f" > "out/$base"
-            echo "Decoded $base ($(wc -c < "out/$base") bytes)"
+            if base64 -d "$f" > "out/$base" 2>/tmp/b64.err; then
+              echo "Decoded $base ($(wc -c < "out/$base") bytes)"
+            else
+              echo "Skipping incomplete or invalid $f"
+              cat /tmp/b64.err || true
+              rm -f "out/$base"
+            fi
           done
           if [ -z "$(ls -A out 2>/dev/null)" ]; then
-            echo "No media to publish"
+            echo "No complete media to publish yet"
             exit 0
           fi
           TAG=v1
@@ -49,3 +48,7 @@ jobs:
           fi
           gh release upload "$TAG" out/* --clobber
           ls -la out
+          echo "Asset URLs:"
+          for f in out/*; do
+            echo "https://github.com/mentallytrillest/missedingta6-media/releases/download/v1/$(basename "$f")"
+          done
