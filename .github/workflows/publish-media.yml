@@ -49,6 +49,7 @@ jobs:
             'short_4.mp4': 12270702,
             'short_5.mp4': 14059170,
             'short_6.mp4': 4302938,
+            'short_7.mp4': 11097035,
           }
           out = 'out'
           for name in os.listdir(out):
@@ -84,8 +85,8 @@ jobs:
           gh release upload "$TAG" out/* --clobber
           # Slim orphan branch so jsDelivr stays under its 50MB package limit.
           # Only Shorts that are still queued in Buffer go on the cdn branch
-          # (short_1 and short_3 were published Nov 18; they stay in release v1).
-          CDN_FILES="short_2.mp4 short_4.mp4 short_5.mp4 short_6.mp4"
+          # (short_1, 3, 5 were published Nov 18; short_6 was cancelled. All stay in release v1.)
+          CDN_FILES="short_2.mp4 short_4.mp4 short_7.mp4"
           work=$(mktemp -d)
           for f in $CDN_FILES; do
             if [ -f "out/$f" ]; then cp "out/$f" "$work/"; fi
