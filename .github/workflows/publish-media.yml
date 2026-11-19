@@ -10,6 +10,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: publish-media
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -43,8 +47,13 @@ jobs:
             'short_2.mp4': 10897132,
             'short_3.mp4': 8018112,
             'short_4.mp4': 12270702,
+            'short_5.mp4': 14059170,
+            'short_6.mp4': 4302938,
           }
           out = 'out'
+          for name in os.listdir(out):
+            if name not in expected:
+              print(f'Unexpected {name}; removing'); os.remove(os.path.join(out, name))
           ok = False
           for name, exp in expected.items():
             path = os.path.join(out, name)
@@ -73,12 +82,18 @@ jobs:
             gh release create "$TAG" --title "Missed in GTA 6 Shorts media" --notes "Public MP4s for scheduling Missed in GTA 6 YouTube Shorts. Fan page, not affiliated with Rockstar Games. Trailer footage copyright Rockstar Games."
           fi
           gh release upload "$TAG" out/* --clobber
-          # Slim orphan branch so jsDelivr stays under its 50MB package limit
+          # Slim orphan branch so jsDelivr stays under its 50MB package limit.
+          # Only Shorts that are still queued in Buffer go on the cdn branch
+          # (short_1 and short_3 were published Nov 18; they stay in release v1).
+          CDN_FILES="short_2.mp4 short_4.mp4 short_5.mp4 short_6.mp4"
           work=$(mktemp -d)
-          cp out/*.mp4 "$work/"
+          for f in $CDN_FILES; do
+            if [ -f "out/$f" ]; then cp "out/$f" "$work/"; fi
+          done
           cat > "$work/README.md" <<'EOF'
           Missed in GTA 6 Shorts media (fan page, not affiliated with Rockstar Games).
           EOF
+          du -sh "$work"
           git -C "$work" init
           git -C "$work" checkout -b cdn
           git -C "$work" config user.name "github-actions[bot]"
@@ -89,6 +104,6 @@ jobs:
           git -C "$work" push -f origin cdn
           ls -la out
           echo "jsDelivr URLs:"
-          for f in out/*; do
+          for f in "$work"/*.mp4; do
             echo "https://cdn.jsdelivr.net/gh/mentallytrillest/missedingta6-media@cdn/$(basename "$f")"
           done
