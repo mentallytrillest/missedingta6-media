@@ -50,6 +50,7 @@ jobs:
             'short_5.mp4': 14059170,
             'short_6.mp4': 4302938,
             'short_7.mp4': 11097035,
+            'short_8.mp4': 2415260,
           }
           out = 'out'
           for name in os.listdir(out):
@@ -84,12 +85,20 @@ jobs:
           fi
           gh release upload "$TAG" out/* --clobber
           # Slim orphan branch so jsDelivr stays under its 50MB package limit.
-          # Only Shorts that are still queued in Buffer go on the cdn branch
-          # (short_1, 3, 5 were published Nov 18; short_6 was cancelled. All stay in release v1.)
-          CDN_FILES="short_2.mp4 short_4.mp4 short_7.mp4"
+          # Only Shorts that are still queued in Buffer go on the cdn branch.
+          # short_1, 3, 5 were published Nov 18; short_6 was cancelled. All stay in release v1.
+          # short_7 failed on Nov 19 (YouTube daily limit) and may be retried.
+          # short_8 is the Nov 19 launch Short.
+          CDN_FILES="short_2.mp4 short_4.mp4 short_7.mp4 short_8.mp4"
           work=$(mktemp -d)
           for f in $CDN_FILES; do
-            if [ -f "out/$f" ]; then cp "out/$f" "$work/"; fi
+            if [ -f "out/$f" ]; then
+              cp "out/$f" "$work/"
+            elif gh release download "$TAG" -p "$f" -D "$work"; then
+              echo "Fetched $f from release $TAG"
+            else
+              echo "WARNING: missing $f for CDN branch"
+            fi
           done
           cat > "$work/README.md" <<'EOF'
           Missed in GTA 6 Shorts media (fan page, not affiliated with Rockstar Games).
