@@ -1,0 +1,90 @@
+name: Publish shorts 9-12 to CDN
+
+on:
+  push:
+    paths:
+      - 'payloads-9-12/**'
+      - '.github/workflows/publish-shorts-9-12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-shorts-9-12
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Decode payloads and add MP4s to cdn branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          shopt -s nullglob
+          if ! ls payloads-9-12/*.mp4.b64-00 >/dev/null 2>&1; then
+            echo "No payloads-9-12 chunks present yet"
+            exit 0
+          fi
+          for first in payloads-9-12/*.mp4.b64-00; do
+            stem="${first%-00}"
+            cat "$stem"-* > "$stem"
+          done
+          for f in payloads-9-12/*.mp4.b64; do
+            base="$(basename "$f" .b64)"
+            if base64 -d "$f" > "out/$base" 2>/tmp/b64.err; then
+              echo "Decoded $base ($(wc -c < "out/$base") bytes)"
+            else
+              echo "Failed to decode $f"
+              cat /tmp/b64.err || true
+              exit 1
+            fi
+          done
+          python3 - <<'PY'
+          import os, sys
+          expected = {
+            'short_9.mp4': 7415846,
+            'short_10.mp4': 3131715,
+            'short_11.mp4': 3633424,
+            'short_12.mp4': 4201676,
+          }
+          out = 'out'
+          errors = []
+          for name, exp in expected.items():
+            path = os.path.join(out, name)
+            if not os.path.exists(path):
+              errors.append(f'Missing {name}')
+              continue
+            got = os.path.getsize(path)
+            if got != exp:
+              errors.append(f'Size mismatch {name}: got {got} expected {exp}')
+            else:
+              print(f'Size OK {name}: {got}')
+          if errors:
+            print('\n'.join(errors))
+            sys.exit(1)
+          PY
+          dest=$(mktemp -d)
+          cp out/*.mp4 "$dest/"
+          git fetch origin cdn
+          git checkout cdn
+          cp "$dest"/*.mp4 .
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add short_9.mp4 short_10.mp4 short_11.mp4 short_12.mp4
+          if git diff --cached --quiet; then
+            echo "No changes to commit; files already present"
+            exit 0
+          fi
+          git commit -m "Add short_9-12.mp4 for CDN hosting"
+          git push origin cdn
+          echo "jsDelivr URLs:"
+          for f in short_9.mp4 short_10.mp4 short_11.mp4 short_12.mp4; do
+            echo "https://cdn.jsdelivr.net/gh/mentallytrillest/missedingta6-media@cdn/$f"
+          done
